@@ -20,6 +20,11 @@ export const INTERACTION_CHANNEL_LABELS: Record<InteractionChannel, string> = {
   other: "Other",
 }
 
+export const INTERACTION_DIRECTION_LABELS: Record<InteractionDirection, string> = {
+  inbound: "Inbound",
+  outbound: "Outbound",
+}
+
 export type Interaction = {
   id: string
   threadId: string

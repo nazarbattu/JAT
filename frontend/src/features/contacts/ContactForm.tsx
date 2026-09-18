@@ -1,30 +1,27 @@
-import { Controller, useForm } from "react-hook-form"
+import { useMemo } from "react"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQuery } from "@tanstack/react-query"
+import { XIcon } from "lucide-react"
 import { StringListField } from "@/components/form/StringListField"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { CompanyCombobox } from "@/features/companies/CompanyCombobox"
 import { listCompanies, companyKeys } from "@/features/companies/api"
 import {
-  contactSchema,
+  buildHiringCompanyIds,
+  createContactSchema,
   type ContactFormValues,
 } from "@/features/contacts/schema"
 import type { Contact, ContactInput } from "@/types/contact"
 
 type ContactFormProps = {
   initial?: Contact
+  /** Prefill employer / ensure this company stays in hiring-for (e.g. job company). */
   defaultCompanyId?: string
-  /** Hide company picker and lock to defaultCompanyId */
-  lockCompany?: boolean
   submitLabel?: string
   onSubmit: (input: ContactInput) => Promise<void> | void
   onCancel?: () => void
@@ -40,10 +37,46 @@ function cleanList(values: string[]) {
   return values.map((value) => value.trim()).filter(Boolean)
 }
 
+function defaultFormValues(
+  initial: Contact | undefined,
+  defaultCompanyId: string | undefined,
+): ContactFormValues {
+  if (initial) {
+    const employer = initial.employerCompanyId
+    const others = (initial.hiringCompanyIds ?? []).filter((id) => id !== employer)
+    return {
+      employerCompanyId: employer,
+      hiringForEmployer: (initial.hiringCompanyIds ?? []).includes(employer),
+      otherHiringCompanyIds: others,
+      name: initial.name ?? "",
+      position: initial.position ?? "",
+      emails: initial.emails?.length ? initial.emails : [""],
+      phones: initial.phones?.length ? initial.phones : [""],
+      linkedinUrl: initial.linkedinUrl ?? "",
+      notes: initial.notes ?? "",
+    }
+  }
+
+  const employer = defaultCompanyId ?? ""
+  const otherHiringCompanyIds =
+    defaultCompanyId && defaultCompanyId !== employer ? [defaultCompanyId] : []
+
+  return {
+    employerCompanyId: employer,
+    hiringForEmployer: true,
+    otherHiringCompanyIds,
+    name: "",
+    position: "",
+    emails: [""],
+    phones: [""],
+    linkedinUrl: "",
+    notes: "",
+  }
+}
+
 export function ContactForm({
   initial,
   defaultCompanyId,
-  lockCompany = false,
   submitLabel = "Save",
   onSubmit,
   onCancel,
@@ -52,32 +85,68 @@ export function ContactForm({
   const companiesQuery = useQuery({
     queryKey: companyKeys.lists(),
     queryFn: listCompanies,
-    enabled: !lockCompany,
   })
 
+  const resolver = useMemo(
+    () => zodResolver(createContactSchema(defaultCompanyId)),
+    [defaultCompanyId],
+  )
+
   const form = useForm<ContactFormValues>({
-    resolver: zodResolver(contactSchema),
-    defaultValues: {
-      companyId: initial?.companyId ?? defaultCompanyId ?? "",
-      name: initial?.name ?? "",
-      position: initial?.position ?? "",
-      emails: initial?.emails?.length ? initial.emails : [""],
-      phones: initial?.phones?.length ? initial.phones : [""],
-      linkedinUrl: initial?.linkedinUrl ?? "",
-      notes: initial?.notes ?? "",
-    },
+    resolver,
+    defaultValues: defaultFormValues(initial, defaultCompanyId),
   })
 
   const { errors } = form.formState
   const companies = companiesQuery.data ?? []
-  const companyLocked = lockCompany && !!defaultCompanyId
+  const [employerCompanyId, hiringForEmployer, otherHiringCompanyIds] =
+    useWatch({
+      control: form.control,
+      name: ["employerCompanyId", "hiringForEmployer", "otherHiringCompanyIds"],
+    })
+
+  const otherHiringExcludeIds = useMemo(
+    () => [employerCompanyId, ...(otherHiringCompanyIds ?? [])].filter(Boolean),
+    [employerCompanyId, otherHiringCompanyIds],
+  )
+
+  const employerName =
+    companies.find((company) => company.id === employerCompanyId)?.name ??
+    "their company"
+
+  const requiredHiringName = defaultCompanyId
+    ? companies.find((company) => company.id === defaultCompanyId)?.name
+    : undefined
+  const requiredHiringIsOther =
+    !!defaultCompanyId &&
+    defaultCompanyId !== employerCompanyId &&
+    !(otherHiringCompanyIds ?? []).includes(defaultCompanyId)
+
+  function addOtherHiringCompany(companyId: string) {
+    if (!companyId || companyId === employerCompanyId) return
+    const current = form.getValues("otherHiringCompanyIds") ?? []
+    if (current.includes(companyId)) return
+    form.setValue("otherHiringCompanyIds", [...current, companyId], {
+      shouldValidate: true,
+    })
+  }
+
+  function removeOtherHiringCompany(companyId: string) {
+    const current = form.getValues("otherHiringCompanyIds") ?? []
+    form.setValue(
+      "otherHiringCompanyIds",
+      current.filter((id) => id !== companyId),
+      { shouldValidate: true },
+    )
+  }
 
   return (
     <form
       className="flex flex-col gap-4"
       onSubmit={form.handleSubmit(async (values) => {
         await onSubmit({
-          companyId: companyLocked ? defaultCompanyId! : values.companyId,
+          employerCompanyId: values.employerCompanyId,
+          hiringCompanyIds: buildHiringCompanyIds(values, defaultCompanyId),
           name: values.name.trim(),
           position: emptyToNull(values.position),
           emails: cleanList(values.emails),
@@ -87,55 +156,121 @@ export function ContactForm({
         })
       })}
     >
-      {!companyLocked && (
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="companyId">Company</Label>
+        <Label htmlFor="employerCompanyId">Works for</Label>
         <Controller
           control={form.control}
-          name="companyId"
-          render={({ field }) => {
-            const companyItems = Object.fromEntries(
-              companies.map((company) => [company.id, company.name]),
-            )
-
-            return (
-              <Select
-                value={field.value || null}
-                onValueChange={(value) => field.onChange(value ?? "")}
-                items={companyItems}
-                disabled={companies.length === 0}
-              >
-                <SelectTrigger
-                  id="companyId"
-                  className="w-full"
-                  aria-invalid={!!errors.companyId}
-                >
-                  <SelectValue placeholder="Select a company" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )
-          }}
+          name="employerCompanyId"
+          render={({ field }) => (
+            <CompanyCombobox
+              id="employerCompanyId"
+              value={field.value}
+              onChange={(next) => {
+                field.onChange(next)
+                form.setValue(
+                  "otherHiringCompanyIds",
+                  (form.getValues("otherHiringCompanyIds") ?? []).filter(
+                    (id) => id !== next,
+                  ),
+                  { shouldValidate: true },
+                )
+              }}
+              companies={companies}
+              placeholder="Search or add a company…"
+              disabled={companiesQuery.isLoading}
+              aria-invalid={!!errors.employerCompanyId}
+            />
+          )}
         />
         {companiesQuery.isLoading && (
           <p className="text-xs text-muted-foreground">Loading companies…</p>
         )}
-        {!companiesQuery.isLoading && companies.length === 0 && (
+        {errors.employerCompanyId && (
           <p className="text-xs text-destructive">
-            Create a company before adding contacts.
+            {errors.employerCompanyId.message}
           </p>
         )}
-        {errors.companyId && (
-          <p className="text-xs text-destructive">{errors.companyId.message}</p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label>Hiring for</Label>
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 accent-primary"
+            checked={!!hiringForEmployer}
+            disabled={!employerCompanyId}
+            onChange={(event) =>
+              form.setValue("hiringForEmployer", event.target.checked, {
+                shouldValidate: true,
+              })
+            }
+          />
+          <span>
+            Their company
+            {employerCompanyId ? (
+              <span className="text-muted-foreground"> ({employerName})</span>
+            ) : null}
+          </span>
+        </label>
+
+        <div className="flex flex-col gap-1.5">
+          <Label
+            htmlFor="otherHiringCompanies"
+            className="text-xs font-normal text-muted-foreground"
+          >
+            Other companies
+          </Label>
+          {(otherHiringCompanyIds ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {(otherHiringCompanyIds ?? []).map((id) => {
+                const name =
+                  companies.find((company) => company.id === id)?.name ?? id
+                return (
+                  <Badge key={id} variant="secondary" className="gap-1 pr-1">
+                    {name}
+                    <button
+                      type="button"
+                      className="rounded-full p-0.5 hover:bg-muted"
+                      aria-label={`Remove ${name}`}
+                      onClick={() => removeOtherHiringCompany(id)}
+                    >
+                      <XIcon className="size-2.5" />
+                    </button>
+                  </Badge>
+                )
+              })}
+            </div>
+          )}
+          <CompanyCombobox
+            id="otherHiringCompanies"
+            value=""
+            onChange={addOtherHiringCompany}
+            companies={companies}
+            excludeIds={otherHiringExcludeIds}
+            placeholder="Search or add a company…"
+            aria-invalid={!!errors.otherHiringCompanyIds}
+          />
+          {errors.otherHiringCompanyIds && (
+            <p className="text-xs text-destructive">
+              {errors.otherHiringCompanyIds.message}
+            </p>
+          )}
+        </div>
+
+        {errors.hiringForEmployer && (
+          <p className="text-xs text-destructive">
+            {errors.hiringForEmployer.message}
+          </p>
+        )}
+
+        {requiredHiringIsOther && requiredHiringName && (
+          <p className="text-xs text-muted-foreground">
+            This contact will also be marked as hiring for {requiredHiringName}{" "}
+            (this job’s company).
+          </p>
         )}
       </div>
-      )}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="name">Name</Label>
@@ -230,8 +365,8 @@ export function ContactForm({
             Cancel
           </Button>
         )}
-        <Button type="submit" disabled={isSubmitting || (!companyLocked && companies.length === 0)}>
-          {isSubmitting ? "Saving..." : submitLabel}
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving…" : submitLabel}
         </Button>
       </div>
     </form>

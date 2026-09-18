@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router"
 import {
@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useBaseDialogOpenChange } from "@/components/ui/stacked-modal"
 import {
   Select,
   SelectContent,
@@ -88,11 +89,25 @@ export function ThreadPage() {
   const queryClient = useQueryClient()
 
   const [addInteractionOpen, setAddInteractionOpen] = useState(false)
+  const onAddInteractionOpenChange = useBaseDialogOpenChange(setAddInteractionOpen)
   const [editingInteraction, setEditingInteraction] = useState<Interaction | null>(
     null,
   )
+  const setEditingInteractionOpen = useCallback((open: boolean) => {
+    if (!open) setEditingInteraction(null)
+  }, [])
+  const onEditingInteractionOpenChange = useBaseDialogOpenChange(
+    setEditingInteractionOpen,
+  )
   const [addFollowUpOpen, setAddFollowUpOpen] = useState(false)
+  const onAddFollowUpOpenChange = useBaseDialogOpenChange(setAddFollowUpOpen)
   const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null)
+  const setEditingFollowUpOpen = useCallback((open: boolean) => {
+    if (!open) setEditingFollowUp(null)
+  }, [])
+  const onEditingFollowUpOpenChange = useBaseDialogOpenChange(
+    setEditingFollowUpOpen,
+  )
 
   const threadQuery = useQuery({
     queryKey: threadKeys.detail(threadId),
@@ -781,152 +796,156 @@ export function ThreadPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={addInteractionOpen} onOpenChange={setAddInteractionOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Log interaction</DialogTitle>
-            <DialogDescription>
-              One contact per interaction. Remarks belong on this form.
-            </DialogDescription>
-          </DialogHeader>
-          {companyId ? (
-            <InteractionForm
-              threadId={threadId}
-              companyId={companyId}
-              contacts={companyContactsQuery.data ?? []}
-              isSubmitting={createInteractionMutation.isPending}
-              onCancel={() => setAddInteractionOpen(false)}
-              onSubmit={async (input: InteractionInput) => {
-                await createInteractionMutation.mutateAsync(input)
-              }}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">Loading company…</p>
-          )}
-        </DialogContent>
+      <Dialog open={addInteractionOpen} onOpenChange={onAddInteractionOpenChange}>
+        {addInteractionOpen ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Log interaction</DialogTitle>
+              <DialogDescription>
+                One contact per interaction. Remarks belong on this form.
+              </DialogDescription>
+            </DialogHeader>
+            {companyId ? (
+              <InteractionForm
+                threadId={threadId}
+                companyId={companyId}
+                contacts={companyContactsQuery.data ?? []}
+                isSubmitting={createInteractionMutation.isPending}
+                onCancel={() => setAddInteractionOpen(false)}
+                onSubmit={async (input: InteractionInput) => {
+                  await createInteractionMutation.mutateAsync(input)
+                }}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading company…</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
 
       <Dialog
         open={!!editingInteraction}
-        onOpenChange={(open) => {
-          if (!open) setEditingInteraction(null)
-        }}
+        onOpenChange={onEditingInteractionOpenChange}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit interaction</DialogTitle>
-            <DialogDescription>
-              Update the touch and its remarks.
-            </DialogDescription>
-          </DialogHeader>
-          {companyId && editingInteraction ? (
-            <InteractionForm
-              key={editingInteraction.id}
-              threadId={threadId}
-              companyId={companyId}
-              contacts={companyContactsQuery.data ?? []}
-              initial={{
-                direction: editingInteraction.direction,
-                channel: editingInteraction.channel,
-                occurredAt: editingInteraction.occurredAt,
-                subject: editingInteraction.subject,
-                summary: editingInteraction.summary,
-                externalRef: editingInteraction.externalRef,
-                contactId:
-                  contactIdByInteractionId.get(editingInteraction.id) ?? "",
-                remark:
-                  remarkByInteractionId.get(editingInteraction.id)?.body ?? "",
-              }}
-              submitLabel="Save changes"
-              isSubmitting={updateInteractionMutation.isPending}
-              onCancel={() => setEditingInteraction(null)}
-              onSubmit={async (input: InteractionInput) => {
-                await updateInteractionMutation.mutateAsync({
-                  id: editingInteraction.id,
-                  input,
-                  existingRemark:
-                    remarkByInteractionId.get(editingInteraction.id) ?? null,
-                })
-              }}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">Loading company…</p>
-          )}
-        </DialogContent>
+        {editingInteraction ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit interaction</DialogTitle>
+              <DialogDescription>
+                Update the touch and its remarks.
+              </DialogDescription>
+            </DialogHeader>
+            {companyId ? (
+              <InteractionForm
+                key={editingInteraction.id}
+                threadId={threadId}
+                companyId={companyId}
+                contacts={companyContactsQuery.data ?? []}
+                initial={{
+                  direction: editingInteraction.direction,
+                  channel: editingInteraction.channel,
+                  occurredAt: editingInteraction.occurredAt,
+                  subject: editingInteraction.subject,
+                  summary: editingInteraction.summary,
+                  externalRef: editingInteraction.externalRef,
+                  contactId:
+                    contactIdByInteractionId.get(editingInteraction.id) ?? "",
+                  remark:
+                    remarkByInteractionId.get(editingInteraction.id)?.body ?? "",
+                }}
+                submitLabel="Save changes"
+                isSubmitting={updateInteractionMutation.isPending}
+                onCancel={() => setEditingInteraction(null)}
+                onSubmit={async (input: InteractionInput) => {
+                  await updateInteractionMutation.mutateAsync({
+                    id: editingInteraction.id,
+                    input,
+                    existingRemark:
+                      remarkByInteractionId.get(editingInteraction.id) ?? null,
+                  })
+                }}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading company…</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
 
-      <Dialog open={addFollowUpOpen} onOpenChange={setAddFollowUpOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Schedule follow-up</DialogTitle>
-            <DialogDescription>
-              Default is +2 days from now for fixed-interval follow-ups.
-            </DialogDescription>
-          </DialogHeader>
-          {companyId ? (
-            <FollowUpForm
-              threadId={threadId}
-              companyId={companyId}
-              contacts={companyContactsQuery.data ?? []}
-              isSubmitting={createFollowUpMutation.isPending}
-              onCancel={() => setAddFollowUpOpen(false)}
-              onSubmit={async (input: FollowUpInput) => {
-                await createFollowUpMutation.mutateAsync(input)
-              }}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">Loading company…</p>
-          )}
-        </DialogContent>
+      <Dialog open={addFollowUpOpen} onOpenChange={onAddFollowUpOpenChange}>
+        {addFollowUpOpen ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Schedule follow-up</DialogTitle>
+              <DialogDescription>
+                Default is +2 days from now for fixed-interval follow-ups.
+              </DialogDescription>
+            </DialogHeader>
+            {companyId ? (
+              <FollowUpForm
+                threadId={threadId}
+                companyId={companyId}
+                contacts={companyContactsQuery.data ?? []}
+                isSubmitting={createFollowUpMutation.isPending}
+                onCancel={() => setAddFollowUpOpen(false)}
+                onSubmit={async (input: FollowUpInput) => {
+                  await createFollowUpMutation.mutateAsync(input)
+                }}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading company…</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
 
       <Dialog
         open={!!editingFollowUp}
-        onOpenChange={(open) => {
-          if (!open) setEditingFollowUp(null)
-        }}
+        onOpenChange={onEditingFollowUpOpenChange}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit follow-up</DialogTitle>
-            <DialogDescription>
-              Update schedule details and remarks.
-            </DialogDescription>
-          </DialogHeader>
-          {companyId && editingFollowUp ? (
-            <FollowUpForm
-              key={editingFollowUp.id}
-              threadId={threadId}
-              companyId={companyId}
-              contacts={companyContactsQuery.data ?? []}
-              initial={{
-                dueAt: editingFollowUp.dueAt,
-                source: editingFollowUp.source,
-                intervalDays: editingFollowUp.intervalDays,
-                suggestedNote: editingFollowUp.suggestedNote,
-                channelHint: editingFollowUp.channelHint,
-                contactId: editingFollowUp.contactId,
-                status: editingFollowUp.status,
-                completedAt: editingFollowUp.completedAt,
-                completedInteractionId: editingFollowUp.completedInteractionId,
-                remark: remarkByFollowUpId.get(editingFollowUp.id)?.body ?? "",
-              }}
-              submitLabel="Save changes"
-              isSubmitting={updateFollowUpMutation.isPending}
-              onCancel={() => setEditingFollowUp(null)}
-              onSubmit={async (input: FollowUpInput) => {
-                await updateFollowUpMutation.mutateAsync({
-                  id: editingFollowUp.id,
-                  input,
-                  existingRemark:
-                    remarkByFollowUpId.get(editingFollowUp.id) ?? null,
-                })
-              }}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">Loading company…</p>
-          )}
-        </DialogContent>
+        {editingFollowUp ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit follow-up</DialogTitle>
+              <DialogDescription>
+                Update schedule details and remarks.
+              </DialogDescription>
+            </DialogHeader>
+            {companyId ? (
+              <FollowUpForm
+                key={editingFollowUp.id}
+                threadId={threadId}
+                companyId={companyId}
+                contacts={companyContactsQuery.data ?? []}
+                initial={{
+                  dueAt: editingFollowUp.dueAt,
+                  source: editingFollowUp.source,
+                  intervalDays: editingFollowUp.intervalDays,
+                  suggestedNote: editingFollowUp.suggestedNote,
+                  channelHint: editingFollowUp.channelHint,
+                  contactId: editingFollowUp.contactId,
+                  status: editingFollowUp.status,
+                  completedAt: editingFollowUp.completedAt,
+                  completedInteractionId: editingFollowUp.completedInteractionId,
+                  remark: remarkByFollowUpId.get(editingFollowUp.id)?.body ?? "",
+                }}
+                submitLabel="Save changes"
+                isSubmitting={updateFollowUpMutation.isPending}
+                onCancel={() => setEditingFollowUp(null)}
+                onSubmit={async (input: FollowUpInput) => {
+                  await updateFollowUpMutation.mutateAsync({
+                    id: editingFollowUp.id,
+                    input,
+                    existingRemark:
+                      remarkByFollowUpId.get(editingFollowUp.id) ?? null,
+                  })
+                }}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading company…</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
     </div>
   )

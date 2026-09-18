@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate, useParams } from "@tanstack/react-router"
 import { ArrowLeftIcon, PencilIcon, Trash2Icon } from "lucide-react"
@@ -18,7 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { companyKeys, getCompany } from "@/features/companies/api"
+import { useBaseDialogOpenChange } from "@/components/ui/stacked-modal"
+import { companyKeys, getCompany, listCompanies } from "@/features/companies/api"
 import { ContactForm } from "@/features/contacts/ContactForm"
 import {
   contactKeys,
@@ -33,6 +34,7 @@ export function ContactDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
+  const onEditOpenChange = useBaseDialogOpenChange(setEditOpen)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const contactQuery = useQuery({
@@ -40,14 +42,31 @@ export function ContactDetailPage() {
     queryFn: () => getContact(contactId),
   })
 
-  const companyId = contactQuery.data?.companyId
+  const employerCompanyId = contactQuery.data?.employerCompanyId
   const companyQuery = useQuery({
-    queryKey: companyKeys.detail(companyId ?? "unknown"),
-    queryFn: () => getCompany(companyId!),
-    enabled: !!companyId,
+    queryKey: companyKeys.detail(employerCompanyId ?? "unknown"),
+    queryFn: () => getCompany(employerCompanyId!),
+    enabled: !!employerCompanyId,
   })
 
-  const companyName = companyQuery.data?.name ?? null
+  const companiesQuery = useQuery({
+    queryKey: companyKeys.lists(),
+    queryFn: listCompanies,
+  })
+
+  const companyNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const company of companiesQuery.data ?? []) {
+      map.set(company.id, company.name)
+    }
+    return map
+  }, [companiesQuery.data])
+
+  const employerName =
+    companyQuery.data?.name ??
+    (employerCompanyId
+      ? companyNameById.get(employerCompanyId) ?? null
+      : null)
 
   const updateMutation = useMutation({
     mutationFn: (input: ContactInput) => updateContact(contactId, input),
@@ -84,6 +103,7 @@ export function ContactDetailPage() {
   }
 
   const contact = contactQuery.data
+  const hiringIds = contact.hiringCompanyIds ?? []
 
   return (
     <div className="flex flex-col gap-6">
@@ -101,7 +121,7 @@ export function ContactDetailPage() {
               {contact.name}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {[contact.position, companyName].filter(Boolean).join(" · ") || "—"}
+              {[contact.position, employerName].filter(Boolean).join(" · ") || "—"}
             </p>
           </div>
         </div>
@@ -120,17 +140,38 @@ export function ContactDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle>Details</CardTitle>
-          <CardDescription>Reusable across jobs and threads at this company.</CardDescription>
+          <CardDescription>
+            Reusable across jobs and threads for companies they work at or hire for.
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Company">
+          <Field label="Works at">
             <Link
               to="/companies/$companyId"
-              params={{ companyId: contact.companyId }}
+              params={{ companyId: contact.employerCompanyId }}
               className="text-primary underline-offset-4 hover:underline"
             >
-              {companyName ?? "View company"}
+              {employerName ?? "View company"}
             </Link>
+          </Field>
+          <Field label="Hiring for">
+            {hiringIds.length > 0 ? (
+              <ul className="flex flex-col gap-1">
+                {hiringIds.map((id) => (
+                  <li key={id}>
+                    <Link
+                      to="/companies/$companyId"
+                      params={{ companyId: id }}
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      {companyNameById.get(id) ?? "View company"}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              "—"
+            )}
           </Field>
           <Field label="Position">{contact.position || "—"}</Field>
           <Field label="Emails">
@@ -189,26 +230,28 @@ export function ContactDetailPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit contact</DialogTitle>
-            <DialogDescription>Update contact details.</DialogDescription>
-          </DialogHeader>
-          <ContactForm
-            key={contact.updatedAt}
-            initial={contact}
-            submitLabel="Save changes"
-            isSubmitting={updateMutation.isPending}
-            onCancel={() => setEditOpen(false)}
-            onSubmit={async (input) => {
-              await updateMutation.mutateAsync(input)
-            }}
-          />
-          {updateMutation.isError && (
-            <p className="text-xs text-destructive">Could not update contact.</p>
-          )}
-        </DialogContent>
+      <Dialog open={editOpen} onOpenChange={onEditOpenChange}>
+        {editOpen ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit contact</DialogTitle>
+              <DialogDescription>Update contact details.</DialogDescription>
+            </DialogHeader>
+            <ContactForm
+              key={contact.updatedAt}
+              initial={contact}
+              submitLabel="Save changes"
+              isSubmitting={updateMutation.isPending}
+              onCancel={() => setEditOpen(false)}
+              onSubmit={async (input) => {
+                await updateMutation.mutateAsync(input)
+              }}
+            />
+            {updateMutation.isError && (
+              <p className="text-xs text-destructive">Could not update contact.</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

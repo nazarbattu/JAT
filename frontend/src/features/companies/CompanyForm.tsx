@@ -44,18 +44,31 @@ export function CompanyForm({
 
   const { errors } = form.formState
 
+  const submit = form.handleSubmit(async (values) => {
+    await onSubmit({
+      name: values.name.trim(),
+      website: emptyToNull(values.website),
+      careersUrl: emptyToNull(values.careersUrl),
+      location: emptyToNull(values.location),
+      notes: emptyToNull(values.notes),
+    })
+  })
+
   return (
-    <form
+    <div
       className="flex flex-col gap-4"
-      onSubmit={form.handleSubmit(async (values) => {
-        await onSubmit({
-          name: values.name.trim(),
-          website: emptyToNull(values.website),
-          careersUrl: emptyToNull(values.careersUrl),
-          location: emptyToNull(values.location),
-          notes: emptyToNull(values.notes),
-        })
-      })}
+      data-company-form=""
+      onKeyDown={(event) => {
+        // Avoid submitting a parent <form> when this panel is embedded inline.
+        if (
+          event.key === "Enter" &&
+          (event.target as HTMLElement).tagName === "INPUT"
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+          void submit()
+        }
+      }}
     >
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="name">Name</Label>
@@ -75,7 +88,7 @@ export function CompanyForm({
           id="website"
           type="url"
           inputMode="url"
-          placeholder="https://example.com"
+          placeholder="https://…"
           {...form.register("website")}
           aria-invalid={!!errors.website}
         />
@@ -90,7 +103,7 @@ export function CompanyForm({
           id="careersUrl"
           type="url"
           inputMode="url"
-          placeholder="https://example.com/careers"
+          placeholder="https://…/careers"
           {...form.register("careersUrl")}
           aria-invalid={!!errors.careersUrl}
         />
@@ -122,19 +135,24 @@ export function CompanyForm({
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="notes">Notes</Label>
-        <Textarea id="notes" rows={4} {...form.register("notes")} />
+        <Textarea id="notes" rows={3} {...form.register("notes")} />
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
         {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
             Cancel
           </Button>
         )}
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : submitLabel}
+        <Button type="button" disabled={isSubmitting} onClick={() => void submit()}>
+          {isSubmitting ? "Saving…" : submitLabel}
         </Button>
       </div>
-    </form>
+    </div>
   )
 }

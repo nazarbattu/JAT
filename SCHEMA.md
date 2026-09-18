@@ -8,7 +8,8 @@ Draft data model. Storage format (Postgres, SQLite, etc.) can come later; this d
 
 ```text
 Company
-  ├── Contact[]                 # people at the company (reusable across jobs/threads)
+  ├── Contact[] (employer)      # people who work at this company
+  ├── Contact[] (hiring-for)    # people hiring/recruiting for this company (may work elsewhere)
   └── Job[]                     # positions you are tracking at this company (1+ per company)
         └── Thread              # one tracking thread per job
               ├── ThreadContact[]   # many contacts on the thread
@@ -17,7 +18,7 @@ Company
               └── Remark[]          # conversation notes (esp. verbal)
 ```
 
-**Core idea:** a **Job** is the position you are tracking at a company. Each job has one **Thread** that can involve **multiple contacts**. The thread starts when either you reach out or they reach you, then accumulates interactions, follow-ups, and remarks until closed.
+**Core idea:** a **Job** is the position you are tracking at a company. Each job has one **Thread** that can involve **multiple contacts**. Contacts have one **employer** and one or more **hiring-for** companies (agency recruiters, etc.). The thread starts when either you reach out or they reach you, then accumulates interactions, follow-ups, and remarks until closed.
 
 **Defaults**
 
@@ -47,12 +48,13 @@ One company can have **many jobs** (multiple positions tracked in parallel).
 
 ## 2. Contact
 
-People at a company. Reusable across multiple jobs/threads at that company.
+People involved in hiring. Reusable across jobs/threads. A contact **works at** exactly one company (employer) and can be **hiring for** one or more companies (including their employer).
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid / pk | |
-| `company_id` | fk → Company | Required |
+| `employer_company_id` | fk → Company | Required — where they work |
+| `hiring_company_ids` | uuid[] | Required, ≥1 — companies they recruit/hire for (join table `contact_hiring_companies`) |
 | `name` | string | Required |
 | `position` | string? | Their title (e.g. Recruiter, Hiring Manager) — not the job you are applying for |
 | `emails` | string[] | One or more |
@@ -61,6 +63,10 @@ People at a company. Reusable across multiple jobs/threads at that company.
 | `notes` | text? | Static notes about the person |
 | `created_at` | datetime | |
 | `updated_at` | datetime | |
+
+**UI:** checkbox “Hiring for their employer” includes/excludes `employer_company_id` from `hiring_company_ids`.
+
+**List filter** `GET /api/contacts?companyId=X`: contacts where they **work at X** or **hire for X**.
 
 ---
 
@@ -129,7 +135,7 @@ Join table: many contacts on one thread (recruiter + hiring manager + HR, etc.).
 | --- | --- | --- |
 | `id` | uuid / pk | |
 | `thread_id` | fk → Thread | Required |
-| `contact_id` | fk → Contact | Required; contact’s `company_id` must match `Job.company_id` for this thread |
+| `contact_id` | fk → Contact | Required; contact should work at or hire for `Job.company_id` |
 | `role_on_thread` | string? | Optional label, e.g. primary, hiring_manager, cc |
 | `added_at` | datetime | |
 
@@ -216,7 +222,8 @@ Remarks can also be free-standing on the thread (`interaction_id` null) for quic
 ## Relationships (summary)
 
 ```text
-Company 1 ── * Contact
+Company 1 ── * Contact             as employer (Contact.employer_company_id)
+Company * ── * Contact             as hiring-for (via contact_hiring_companies)
 Company 1 ── * Job                 (multiple positions per company)
 Job     1 ── 1 Thread              (required; one thread per job)
 Thread  * ── * Contact             via ThreadContact
@@ -265,7 +272,7 @@ FollowUp    0..1 ── 1 Interaction  (when completed)
 
 ## Suggested indexes / queries
 
-- Contacts by `company_id`
+- Contacts by `employer_company_id` and by hiring-for company (`contact_hiring_companies`)
 - Jobs by `company_id` and `status` (company’s tracked positions)
 - Thread by `job_id` (1:1)
 - ThreadContacts by `thread_id`

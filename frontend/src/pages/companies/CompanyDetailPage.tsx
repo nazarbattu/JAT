@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useBaseDialogOpenChange } from "@/components/ui/stacked-modal"
 import { CompanyForm } from "@/features/companies/CompanyForm"
 import {
   companyKeys,
@@ -32,6 +33,7 @@ export function CompanyDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
+  const onEditOpenChange = useBaseDialogOpenChange(setEditOpen)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const companyQuery = useQuery({
@@ -155,26 +157,28 @@ export function CompanyDetailPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit company</DialogTitle>
-            <DialogDescription>Update company details.</DialogDescription>
-          </DialogHeader>
-          <CompanyForm
-            key={company.updatedAt}
-            initial={company}
-            submitLabel="Save changes"
-            isSubmitting={updateMutation.isPending}
-            onCancel={() => setEditOpen(false)}
-            onSubmit={async (input) => {
-              await updateMutation.mutateAsync(input)
-            }}
-          />
-          {updateMutation.isError && (
-            <p className="text-xs text-destructive">Could not update company.</p>
-          )}
-        </DialogContent>
+      <Dialog open={editOpen} onOpenChange={onEditOpenChange}>
+        {editOpen ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit company</DialogTitle>
+              <DialogDescription>Update company details.</DialogDescription>
+            </DialogHeader>
+            <CompanyForm
+              key={company.updatedAt}
+              initial={company}
+              submitLabel="Save changes"
+              isSubmitting={updateMutation.isPending}
+              onCancel={() => setEditOpen(false)}
+              onSubmit={async (input) => {
+                await updateMutation.mutateAsync(input)
+              }}
+            />
+            {updateMutation.isError && (
+              <p className="text-xs text-destructive">Could not update company.</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

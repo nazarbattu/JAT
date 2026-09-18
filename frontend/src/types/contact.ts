@@ -1,6 +1,7 @@
 export type Contact = {
   id: string
-  companyId: string
+  employerCompanyId: string
+  hiringCompanyIds: string[]
   name: string
   position: string | null
   emails: string[]
@@ -12,7 +13,8 @@ export type Contact = {
 }
 
 export type ContactInput = {
-  companyId: string
+  employerCompanyId: string
+  hiringCompanyIds: string[]
   name: string
   position?: string | null
   emails?: string[]

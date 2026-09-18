@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useBaseDialogOpenChange } from "@/components/ui/stacked-modal"
 import {
   Select,
   SelectContent,
@@ -39,6 +40,7 @@ import {
 export function JobsPage() {
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
+  const onCreateOpenChange = useBaseDialogOpenChange(setCreateOpen)
   const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all")
 
   const jobsQuery = useQuery({
@@ -184,26 +186,28 @@ export function JobsPage() {
         </div>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Add job</DialogTitle>
-            <DialogDescription>
-              Track a role at a company. A conversation thread is created automatically.
-            </DialogDescription>
-          </DialogHeader>
-          <JobForm
-            submitLabel="Create"
-            isSubmitting={createMutation.isPending}
-            onCancel={() => setCreateOpen(false)}
-            onSubmit={async (input: JobInput) => {
-              await createMutation.mutateAsync(input)
-            }}
-          />
-          {createMutation.isError && (
-            <p className="text-xs text-destructive">Could not create job.</p>
-          )}
-        </DialogContent>
+      <Dialog open={createOpen} onOpenChange={onCreateOpenChange}>
+        {createOpen ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Add job</DialogTitle>
+              <DialogDescription>
+                Track a role at a company. A conversation thread is created automatically.
+              </DialogDescription>
+            </DialogHeader>
+            <JobForm
+              submitLabel="Create"
+              isSubmitting={createMutation.isPending}
+              onCancel={() => setCreateOpen(false)}
+              onSubmit={async (input: JobInput) => {
+                await createMutation.mutateAsync(input)
+              }}
+            />
+            {createMutation.isError && (
+              <p className="text-xs text-destructive">Could not create job.</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
     </div>
   )

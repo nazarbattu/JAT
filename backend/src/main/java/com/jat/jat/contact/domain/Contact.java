@@ -9,7 +9,9 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,8 +28,21 @@ import lombok.Setter;
 @Builder
 public class Contact extends BaseAuditableEntity {
 
+    /**
+     * Company where this person works. Nullable only so Hibernate can add the column to
+     * existing DBs before {@code ContactCompanyMigrator} backfills; service requires it.
+     */
+    @Column(name = "employer_company_id")
+    private UUID employerCompanyId;
+
+    /** Companies this person is hiring / recruiting for (may include employer). */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+            name = "contact_hiring_companies",
+            joinColumns = @JoinColumn(name = "contact_id"))
     @Column(name = "company_id", nullable = false)
-    private UUID companyId;
+    @Builder.Default
+    private Set<UUID> hiringCompanyIds = new HashSet<>();
 
     @Column(nullable = false)
     private String name;

@@ -3,6 +3,7 @@ import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { PlusIcon } from "lucide-react"
+import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -11,6 +12,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  stackedModalZIndexClass,
+  useBaseDialogOpenChange,
+  useStackedModalLayer,
+} from "@/components/ui/stacked-modal"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -89,6 +95,9 @@ export function FollowUpForm({
 }: FollowUpFormProps) {
   const queryClient = useQueryClient()
   const [addContactOpen, setAddContactOpen] = useState(false)
+  const onAddContactOpenChange = useBaseDialogOpenChange(setAddContactOpen)
+  const addContactLayer = useStackedModalLayer(addContactOpen)
+  const addContactZ = stackedModalZIndexClass(addContactLayer)
 
   const form = useForm<FollowUpFormValues>({
     resolver: zodResolver(followUpSchema),
@@ -164,7 +173,7 @@ export function FollowUpForm({
       >
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
-            <Label>Contact</Label>
+            <Label htmlFor="contactId">Contact</Label>
             <Button
               type="button"
               variant="ghost"
@@ -185,12 +194,16 @@ export function FollowUpForm({
                 items={contactItems}
                 disabled={contacts.length === 0}
               >
-                <SelectTrigger className="w-full" aria-invalid={!!errors.contactId}>
+                <SelectTrigger
+                  id="contactId"
+                  className="w-full"
+                  aria-invalid={!!errors.contactId}
+                >
                   <SelectValue
                     placeholder={
                       contacts.length === 0
                         ? "Add a contact first"
-                        : "Select contact"
+                        : "Select a contact"
                     }
                   />
                 </SelectTrigger>
@@ -225,7 +238,7 @@ export function FollowUpForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label>Source</Label>
+            <Label htmlFor="source">Source</Label>
             <Controller
               control={form.control}
               name="source"
@@ -235,7 +248,7 @@ export function FollowUpForm({
                   onValueChange={(value) => value && field.onChange(value)}
                   items={sourceItems}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="source" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -261,7 +274,7 @@ export function FollowUpForm({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label>Channel hint</Label>
+          <Label htmlFor="channelHint">Channel hint</Label>
           <Controller
             control={form.control}
             name="channelHint"
@@ -271,7 +284,7 @@ export function FollowUpForm({
                 onValueChange={(value) => field.onChange(value)}
                 items={channelItems}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger id="channelHint" className="w-full">
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
                 <SelectContent>
@@ -290,7 +303,7 @@ export function FollowUpForm({
           <Label htmlFor="suggestedNote">Note</Label>
           <Textarea
             id="suggestedNote"
-            rows={2}
+            rows={3}
             placeholder="They said call back Monday…"
             {...form.register("suggestedNote")}
           />
@@ -301,7 +314,7 @@ export function FollowUpForm({
           <Textarea
             id="remark"
             rows={3}
-            placeholder="Extra context for this follow-up"
+            placeholder="Extra context for this follow-up…"
             {...form.register("remark")}
           />
         </div>
@@ -313,33 +326,40 @@ export function FollowUpForm({
             </Button>
           )}
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : submitLabel}
+            {isSubmitting ? "Saving…" : submitLabel}
           </Button>
         </div>
       </form>
 
-      <Dialog open={addContactOpen} onOpenChange={setAddContactOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add contact</DialogTitle>
-            <DialogDescription>
-              Create a company contact and select them for this follow-up.
-            </DialogDescription>
-          </DialogHeader>
-          <ContactForm
-            defaultCompanyId={companyId}
-            lockCompany
-            submitLabel="Create & select"
-            isSubmitting={createContactMutation.isPending}
-            onCancel={() => setAddContactOpen(false)}
-            onSubmit={async (input: ContactInput) => {
-              await createContactMutation.mutateAsync(input)
-            }}
-          />
-          {createContactMutation.isError && (
-            <p className="text-xs text-destructive">Could not create contact.</p>
-          )}
-        </DialogContent>
+      <Dialog open={addContactOpen} onOpenChange={onAddContactOpenChange}>
+        {addContactOpen ? (
+          <DialogContent
+            className={cn(
+              "max-h-[90vh] overflow-y-auto sm:max-w-md",
+              addContactZ,
+            )}
+            overlayClassName={addContactZ}
+          >
+            <DialogHeader>
+              <DialogTitle>Add contact</DialogTitle>
+              <DialogDescription>
+                Create a company contact and select them for this follow-up.
+              </DialogDescription>
+            </DialogHeader>
+            <ContactForm
+              defaultCompanyId={companyId}
+              submitLabel="Create & select"
+              isSubmitting={createContactMutation.isPending}
+              onCancel={() => setAddContactOpen(false)}
+              onSubmit={async (input: ContactInput) => {
+                await createContactMutation.mutateAsync(input)
+              }}
+            />
+            {createContactMutation.isError && (
+              <p className="text-xs text-destructive">Could not create contact.</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
     </>
   )

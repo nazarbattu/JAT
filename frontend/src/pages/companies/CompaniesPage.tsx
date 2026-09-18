@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useBaseDialogOpenChange } from "@/components/ui/stacked-modal"
 import {
   Table,
   TableBody,
@@ -29,6 +30,7 @@ import type { CompanyInput } from "@/types/company"
 export function CompaniesPage() {
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
+  const onCreateOpenChange = useBaseDialogOpenChange(setCreateOpen)
 
   const companiesQuery = useQuery({
     queryKey: companyKeys.lists(),
@@ -127,26 +129,28 @@ export function CompaniesPage() {
         </div>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add company</DialogTitle>
-            <DialogDescription>
-              Create a company to attach jobs and contacts.
-            </DialogDescription>
-          </DialogHeader>
-          <CompanyForm
-            submitLabel="Create"
-            isSubmitting={createMutation.isPending}
-            onCancel={() => setCreateOpen(false)}
-            onSubmit={async (input: CompanyInput) => {
-              await createMutation.mutateAsync(input)
-            }}
-          />
-          {createMutation.isError && (
-            <p className="text-xs text-destructive">Could not create company.</p>
-          )}
-        </DialogContent>
+      <Dialog open={createOpen} onOpenChange={onCreateOpenChange}>
+        {createOpen ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add company</DialogTitle>
+              <DialogDescription>
+                Create a company to attach jobs and contacts.
+              </DialogDescription>
+            </DialogHeader>
+            <CompanyForm
+              submitLabel="Create"
+              isSubmitting={createMutation.isPending}
+              onCancel={() => setCreateOpen(false)}
+              onSubmit={async (input: CompanyInput) => {
+                await createMutation.mutateAsync(input)
+              }}
+            />
+            {createMutation.isError && (
+              <p className="text-xs text-destructive">Could not create company.</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
     </div>
   )

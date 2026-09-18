@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useBaseDialogOpenChange } from "@/components/ui/stacked-modal"
 import { companyKeys, getCompany } from "@/features/companies/api"
 import { JobForm } from "@/features/jobs/JobForm"
 import { JobStatusBadge } from "@/features/jobs/JobStatusBadge"
@@ -30,6 +31,7 @@ export function JobDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
+  const onEditOpenChange = useBaseDialogOpenChange(setEditOpen)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const jobQuery = useQuery({
@@ -212,26 +214,28 @@ export function JobDetailPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit job</DialogTitle>
-            <DialogDescription>Update role details and status.</DialogDescription>
-          </DialogHeader>
-          <JobForm
-            key={job.updatedAt}
-            initial={job}
-            submitLabel="Save changes"
-            isSubmitting={updateMutation.isPending}
-            onCancel={() => setEditOpen(false)}
-            onSubmit={async (input) => {
-              await updateMutation.mutateAsync(input)
-            }}
-          />
-          {updateMutation.isError && (
-            <p className="text-xs text-destructive">Could not update job.</p>
-          )}
-        </DialogContent>
+      <Dialog open={editOpen} onOpenChange={onEditOpenChange}>
+        {editOpen ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit job</DialogTitle>
+              <DialogDescription>Update role details and status.</DialogDescription>
+            </DialogHeader>
+            <JobForm
+              key={job.updatedAt}
+              initial={job}
+              submitLabel="Save changes"
+              isSubmitting={updateMutation.isPending}
+              onCancel={() => setEditOpen(false)}
+              onSubmit={async (input) => {
+                await updateMutation.mutateAsync(input)
+              }}
+            />
+            {updateMutation.isError && (
+              <p className="text-xs text-destructive">Could not update job.</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

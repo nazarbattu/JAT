@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useBaseDialogOpenChange } from "@/components/ui/stacked-modal"
 import {
   Table,
   TableBody,
@@ -30,6 +31,7 @@ import type { ContactInput } from "@/types/contact"
 export function ContactsPage() {
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
+  const onCreateOpenChange = useBaseDialogOpenChange(setCreateOpen)
 
   const contactsQuery = useQuery({
     queryKey: contactKeys.lists(),
@@ -63,7 +65,7 @@ export function ContactsPage() {
         <div>
           <h1 className="font-heading text-2xl font-medium tracking-tight">Contacts</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            People at companies you are tracking.
+            People who work at or hire for companies you are tracking.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -97,7 +99,8 @@ export function ContactsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Company</TableHead>
+                <TableHead>Works at</TableHead>
+                <TableHead>Hiring for</TableHead>
                 <TableHead>Position</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
@@ -119,11 +122,17 @@ export function ContactsPage() {
                   <TableCell>
                     <Link
                       to="/companies/$companyId"
-                      params={{ companyId: contact.companyId }}
+                      params={{ companyId: contact.employerCompanyId }}
                       className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                     >
-                      {companyNameById.get(contact.companyId) ?? "Unknown company"}
+                      {companyNameById.get(contact.employerCompanyId) ??
+                        "Unknown company"}
                     </Link>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {(contact.hiringCompanyIds ?? [])
+                      .map((id) => companyNameById.get(id) ?? "Unknown")
+                      .join(", ") || "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {contact.position || "—"}
@@ -144,26 +153,28 @@ export function ContactsPage() {
         </div>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add contact</DialogTitle>
-            <DialogDescription>
-              Add a person at a company for threads and interactions.
-            </DialogDescription>
-          </DialogHeader>
-          <ContactForm
-            submitLabel="Create"
-            isSubmitting={createMutation.isPending}
-            onCancel={() => setCreateOpen(false)}
-            onSubmit={async (input: ContactInput) => {
-              await createMutation.mutateAsync(input)
-            }}
-          />
-          {createMutation.isError && (
-            <p className="text-xs text-destructive">Could not create contact.</p>
-          )}
-        </DialogContent>
+      <Dialog open={createOpen} onOpenChange={onCreateOpenChange}>
+        {createOpen ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add contact</DialogTitle>
+              <DialogDescription>
+                Add someone who works at and/or hires for a company.
+              </DialogDescription>
+            </DialogHeader>
+            <ContactForm
+              submitLabel="Create"
+              isSubmitting={createMutation.isPending}
+              onCancel={() => setCreateOpen(false)}
+              onSubmit={async (input: ContactInput) => {
+                await createMutation.mutateAsync(input)
+              }}
+            />
+            {createMutation.isError && (
+              <p className="text-xs text-destructive">Could not create contact.</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
     </div>
   )

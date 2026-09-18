@@ -3,6 +3,7 @@ import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { PlusIcon } from "lucide-react"
+import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -11,6 +12,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  stackedModalZIndexClass,
+  useBaseDialogOpenChange,
+  useStackedModalLayer,
+} from "@/components/ui/stacked-modal"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -33,6 +39,7 @@ import {
   INTERACTION_CHANNELS,
   INTERACTION_CHANNEL_LABELS,
   INTERACTION_DIRECTIONS,
+  INTERACTION_DIRECTION_LABELS,
   type InteractionInput,
 } from "@/types/interaction"
 
@@ -75,6 +82,9 @@ export function InteractionForm({
 }: InteractionFormProps) {
   const queryClient = useQueryClient()
   const [addContactOpen, setAddContactOpen] = useState(false)
+  const onAddContactOpenChange = useBaseDialogOpenChange(setAddContactOpen)
+  const addContactLayer = useStackedModalLayer(addContactOpen)
+  const addContactZ = stackedModalZIndexClass(addContactLayer)
 
   const form = useForm<InteractionFormValues>({
     resolver: zodResolver(interactionSchema),
@@ -106,7 +116,10 @@ export function InteractionForm({
 
   const { errors } = form.formState
   const directionItems = Object.fromEntries(
-    INTERACTION_DIRECTIONS.map((value) => [value, value]),
+    INTERACTION_DIRECTIONS.map((value) => [
+      value,
+      INTERACTION_DIRECTION_LABELS[value],
+    ]),
   )
   const channelItems = Object.fromEntries(
     INTERACTION_CHANNELS.map((value) => [
@@ -143,7 +156,7 @@ export function InteractionForm({
       >
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
-            <Label>Contact</Label>
+            <Label htmlFor="contactId">Contact</Label>
             <Button
               type="button"
               variant="ghost"
@@ -164,12 +177,16 @@ export function InteractionForm({
                 items={contactItems}
                 disabled={contacts.length === 0}
               >
-                <SelectTrigger className="w-full" aria-invalid={!!errors.contactId}>
+                <SelectTrigger
+                  id="contactId"
+                  className="w-full"
+                  aria-invalid={!!errors.contactId}
+                >
                   <SelectValue
                     placeholder={
                       contacts.length === 0
                         ? "Add a contact first"
-                        : "Select contact"
+                        : "Select a contact"
                     }
                   />
                 </SelectTrigger>
@@ -191,7 +208,7 @@ export function InteractionForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label>Direction</Label>
+            <Label htmlFor="direction">Direction</Label>
             <Controller
               control={form.control}
               name="direction"
@@ -201,13 +218,13 @@ export function InteractionForm({
                   onValueChange={(value) => value && field.onChange(value)}
                   items={directionItems}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="direction" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {INTERACTION_DIRECTIONS.map((direction) => (
                       <SelectItem key={direction} value={direction}>
-                        {direction}
+                        {INTERACTION_DIRECTION_LABELS[direction]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -216,7 +233,7 @@ export function InteractionForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Channel</Label>
+            <Label htmlFor="channel">Channel</Label>
             <Controller
               control={form.control}
               name="channel"
@@ -226,7 +243,7 @@ export function InteractionForm({
                   onValueChange={(value) => value && field.onChange(value)}
                   items={channelItems}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="channel" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -270,7 +287,7 @@ export function InteractionForm({
           <Textarea
             id="remark"
             rows={3}
-            placeholder="What was said / decided (especially for calls)"
+            placeholder="What was said / decided…"
             {...form.register("remark")}
           />
         </div>
@@ -279,7 +296,7 @@ export function InteractionForm({
           <Label htmlFor="externalRef">External ref</Label>
           <Input
             id="externalRef"
-            placeholder="Mail / WhatsApp link"
+            placeholder="Mail / WhatsApp link…"
             {...form.register("externalRef")}
           />
         </div>
@@ -291,33 +308,40 @@ export function InteractionForm({
             </Button>
           )}
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : submitLabel}
+            {isSubmitting ? "Saving…" : submitLabel}
           </Button>
         </div>
       </form>
 
-      <Dialog open={addContactOpen} onOpenChange={setAddContactOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add contact</DialogTitle>
-            <DialogDescription>
-              Create a company contact and select them for this interaction.
-            </DialogDescription>
-          </DialogHeader>
-          <ContactForm
-            defaultCompanyId={companyId}
-            lockCompany
-            submitLabel="Create & select"
-            isSubmitting={createContactMutation.isPending}
-            onCancel={() => setAddContactOpen(false)}
-            onSubmit={async (input: ContactInput) => {
-              await createContactMutation.mutateAsync(input)
-            }}
-          />
-          {createContactMutation.isError && (
-            <p className="text-xs text-destructive">Could not create contact.</p>
-          )}
-        </DialogContent>
+      <Dialog open={addContactOpen} onOpenChange={onAddContactOpenChange}>
+        {addContactOpen ? (
+          <DialogContent
+            className={cn(
+              "max-h-[90vh] overflow-y-auto sm:max-w-md",
+              addContactZ,
+            )}
+            overlayClassName={addContactZ}
+          >
+            <DialogHeader>
+              <DialogTitle>Add contact</DialogTitle>
+              <DialogDescription>
+                Create a company contact and select them for this interaction.
+              </DialogDescription>
+            </DialogHeader>
+            <ContactForm
+              defaultCompanyId={companyId}
+              submitLabel="Create & select"
+              isSubmitting={createContactMutation.isPending}
+              onCancel={() => setAddContactOpen(false)}
+              onSubmit={async (input: ContactInput) => {
+                await createContactMutation.mutateAsync(input)
+              }}
+            />
+            {createContactMutation.isError && (
+              <p className="text-xs text-destructive">Could not create contact.</p>
+            )}
+          </DialogContent>
+        ) : null}
       </Dialog>
     </>
   )
