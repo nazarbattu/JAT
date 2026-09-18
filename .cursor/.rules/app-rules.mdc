@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+1. The frontend uses 'pnpm'
+2. The frontend should be mobile friendly as well as should look good on bigger screens
