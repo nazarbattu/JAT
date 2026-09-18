@@ -9,6 +9,7 @@ Desktop.ini
 *.swp
 *.swo
 *~
+.cursor/
 
 # Env / secrets (anywhere)
 .env
